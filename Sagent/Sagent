@@ -1,0 +1,71 @@
+#!/bin/bash
+# Date: 2018-04-03
+
+
+function help()
+{
+	echo -e "\nUsage:"
+	echo -e "\t$0 -r 'TARGETS' 'command'"
+	echo -e "\t$0 -f FILENAME 'command'"
+	echo -e "\t$0 -r 'TARGETS' -f FILENAME 'command'"
+	echo -e "\t$0 -h\n"
+}
+
+port=54321
+rFlag=0
+fFlag=0
+while getopts ":r:f:h" opt
+do
+	case $opt in
+		h)
+			help
+			exit 1
+			;;
+		r)
+			rFlag=1
+			rTargets=$OPTARG
+			;;
+		f)
+			fFlag=1
+			file=$OPTARG
+			fTargets=$(cat $file | xargs | sed 's/ /,/g')
+			;;
+		\?)
+			echo "Unrecognized option -$OPTARG"
+			;;
+	esac
+done
+shift "$(($OPTIND-1))"
+
+if [ $# -ne 1 ] || [ $rFlag -eq 0 -a $fFlag -eq 0 ]
+then
+	echo "Error usage."
+	help
+	exit 1
+else
+	cmd=$1
+fi
+
+if [ $rFlag -eq 1 -a $fFlag -eq 0 ]
+then
+	targets=$rTargets
+elif [ $fFlag -eq 1 -a $rFlag -eq 0 ]
+then
+	targets=$fTargets
+else
+	targets="$rTargets,$fTargets"
+fi
+
+echo "targets: $targets"
+
+hostname=$(hostname)
+realuser=$(tty=$(tty | cut -c 6-) && who | grep "$tty" | awk '{print $1}')
+
+sendMessage="|${realuser}@${hostname}|:$cmd"
+
+for ip in $(echo $targets | sed 's/,/ /g')
+do
+  tcpclient $ip $port ./client.sh "$sendMessage" &
+done
+
+wait
